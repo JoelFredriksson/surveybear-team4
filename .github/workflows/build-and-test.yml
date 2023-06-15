@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - test-branch
+  pull_request_review:
+    types: [submitted, dismissed]
    
 jobs: 
   test_job:
@@ -20,3 +22,25 @@ jobs:
       - run: npx nx test surveybear-api
       - run: npx nx test surveybear-survey-spa
 
+  enforce-review:
+    if: github.event_name == 'pull_request_review'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check reviews
+      id: reviews
+      uses: actions/github-script@v3
+      with:
+        github-token: ${{secrets.GITHUB_TOKEN}}
+        script: |
+          const { data: reviews } = await github.pulls.listReviews({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: context.issue.number
+          })
+
+          const approvedReviews = reviews.filter(review => review.state === 'APPROVED')
+
+          if (approvedReviews.length < 2) {
+            throw new Error('Pull request must be approved by at least two reviewers.')
+          }
